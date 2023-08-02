@@ -19,9 +19,7 @@ from datetime import datetime
 from utils import comms  # Make sure you have this utils module with db.py file
 import boto3
 import os
-from dotenv import load_dotenv
 
-load_dotenv()  # take environment variables from .env.
 
 # Set environment variables
 access_key = os.getenv('AWS_ACCESS_KEY_ID')
