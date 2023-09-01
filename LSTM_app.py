@@ -20,6 +20,28 @@ from utils import comms  # Make sure you have this utils module with db.py file
 import boto3
 import os
 
+# Initialise session state for authentication
+if 'is_authenticated' not in st.session_state:
+    st.session_state['is_authenticated'] = False
+
+# Function to authenticate user using AWS Cognito
+def authenticate(email, password):
+    client = boto3.client('cognito-idp')
+    try:
+        resp = client.initiate_auth(
+            AuthFlow='USER_PASSWORD_AUTH',
+            AuthParameters={
+                'USERNAME': email,
+                'PASSWORD': password,
+            },
+            ClientId='ncv5lum49vqnk7m505e8pfvce' 
+        )
+        return resp.get("AuthenticationResult").get("IdToken")
+    except Exception as e:
+        st.warning("Failed to authenticate")
+        return None
+
+
 
 # Set environment variables
 access_key = os.getenv('AWS_ACCESS_KEY_ID')
@@ -29,7 +51,7 @@ stock_bucket = 'raw-stock-price'
 # AWS S3 comment-section bucket
 comment_bucket = 'comment-section-st'
 
-
+# Load data from S3
 def load_data_from_s3(stock_name):
     st.header("Data")
     file_name = f'yhoofinance-daily-historical-data/{stock_name}_daily_data.csv'
@@ -43,7 +65,7 @@ def load_data_from_s3(stock_name):
 
     return df
 
-#@st.cache(suppress_st_warning=True, allow_output_mutation=True)
+# Train the LSTM model
 def train_lstm_model(data, look_back, lstm_units, batch_size, epochs, learning_rate, optimizer, loss):
     scaler = MinMaxScaler()
     scaled_data = scaler.fit_transform(data['adj_close'].values.reshape(-1,1))
@@ -76,13 +98,17 @@ def train_lstm_model(data, look_back, lstm_units, batch_size, epochs, learning_r
 
     return model, scaler, train_data, test_data, X_test, Y_test
 
+# Function to create dataset for LSTM model
 def create_dataset(data, look_back):
     X, Y = [], []
+    # Loop through the data and create sequences for training
     for i in range(look_back, len(data)):
         X.append(data[i-look_back:i, 0])
         Y.append(data[i, 0])
     return np.array(X), np.array(Y)
 
+
+# Function to plot predictions
 def plot_predictions(data, train_len, predictions, future_predictions, future_days):
     train = data[:train_len]
     valid = data[train_len:]
@@ -100,30 +126,41 @@ def plot_predictions(data, train_len, predictions, future_predictions, future_da
     plt.show()
     st.pyplot()
 
+
+# Function to calculate evaluation metrics
 def calculate_metrics(valid, predictions):
     # Calculate the mean squared error
     mse = mean_squared_error(valid['adj_close'], predictions)
-
     # Calculate the root mean squared error
     rmse = sqrt(mse)
-
     # Calculate the mean absolute percentage error
     mape = np.mean(np.abs((valid['adj_close'] - valid['Predictions']) / valid['adj_close'])) * 100
-
     return mse, rmse, mape
 
 def main():
-
     st.set_option('deprecation.showPyplotGlobalUse', False)
-      
-    # Display the image using Streamlit with HTML to center it
+
+    # Check if the user is authenticated for access
+    if not st.session_state['is_authenticated']:
+        st.markdown("<h1 style='text-align: center;'>Login</h1>", unsafe_allow_html=True)
+        email = st.text_input("Email Address")
+        password = st.text_input("Password", type="password")
+        if st.button("Login"):
+            token = authenticate(email, password)
+            if token:
+                st.session_state['token'] = token
+                st.session_state['is_authenticated'] = True  # Set the session state
+                st.success("Logged in")
+            else:
+                st.warning("Failed to log in: Please try again or return to https://main.dsxr40yvbyhag.amplifyapp.com to sign up")
+        return 
+    
     col1, col2, col3 = st.sidebar.columns([1,2,1])
     with col1:
         st.image("assets/futurstox-high-resolution-logo-white-on-transparent-background.png", width=350)
 
     
     st.title("Stock Price Prediction with LSTM")
-
     st.sidebar.title("Model Hyperparameters")
     stock_name = st.sidebar.selectbox("Select a stock", ("AAPL", "GOOGL", "MSFT", "AMZN","TSLA","META", "NFLX", "NVDA"), help="Select a stock.")
     learning_rate = st.sidebar.slider("Learning rate", min_value=0.001, max_value=0.1, value=0.01, step=0.001, help="Select the learning rate for the model.")
@@ -139,7 +176,6 @@ def main():
         epochs = st.sidebar.slider("Number of epochs", min_value=1, max_value=100, value=1, step=1, help="Select the number of epochs.")
         optimizer = st.sidebar.selectbox("Optimizer", ("Adam", "SGD", "RMSprop"), help="Select the optimizer.")
         loss = st.sidebar.selectbox("Loss function", ("mean_squared_error", "mean_absolute_error", "logcosh"), help="Select the loss function.")
-
     else:
         look_back = 32
         lstm_units = 32
@@ -148,34 +184,26 @@ def main():
         optimizer = "Adam"
         loss = "mean_squared_error"
 
-            
-       
 
     if st.sidebar.button('Train Model'):
         data = load_data_from_s3(stock_name)
-
-
         model, scaler, train_data, test_data, X_test, Y_test = train_lstm_model(data, look_back, lstm_units, batch_size, epochs, learning_rate, optimizer, loss)
-
         st.write(f"Trained LSTM model for {stock_name} with look-back period = {look_back}, LSTM units = {lstm_units}, batch size = {batch_size}, epochs = {epochs}, learning rate = {learning_rate}, optimizer = {optimizer}, loss function = {loss}")
-
         # Get the predicted values
         predictions = model.predict(X_test)
         predictions = scaler.inverse_transform(predictions)
-
         # Make predictions for the next future_days days
         input_data = scaler.transform(data['adj_close'].values.reshape(-1,1))[-look_back:]  # start with the last 50 days of data
         future_predictions = []
         for _ in range(future_days):
-            pred = model.predict(input_data.reshape(1, -1, 1))  # make a prediction
-            future_predictions.append(pred[0, 0])  # store the prediction
-            input_data = np.roll(input_data, -1)  # shift the data
-            input_data[-1] = pred  # insert the prediction at the end
-
+            pred = model.predict(input_data.reshape(1, -1, 1))  
+            future_predictions.append(pred[0, 0])  
+            input_data = np.roll(input_data, -1)  
+            input_data[-1] = pred 
         # Unscale the predictions
         future_predictions = scaler.inverse_transform(np.array(future_predictions).reshape(-1,1))
 
-             # Calculate metrics
+         # Calculate metrics
         valid = data[len(train_data):len(train_data)+len(predictions)]
         valid['Predictions'] = predictions
         mse, rmse, mape = calculate_metrics(valid, predictions)
@@ -197,7 +225,7 @@ def main():
 
         plot_predictions(data, len(train_data), predictions, future_predictions, future_days)
 
-          # Display explanations on the main page
+    # Display explanations on the main page
     if explanations:
         st.markdown('## Explanations')
         st.markdown('**Evaluation Metrics**: Measures used to assess how well the model\'s predictions match the actual values.')
@@ -253,5 +281,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-# In[ ]:
 
