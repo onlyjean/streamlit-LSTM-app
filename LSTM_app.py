@@ -190,7 +190,7 @@ def main():
         predictions = model.predict(X_test)
         predictions = scaler.inverse_transform(predictions)
         # Make predictions for the next future_days days
-        input_data = scaler.transform(data['adj_close'].values.reshape(-1,1))[-look_back:]  # start with the last 50 days of data
+        input_data = scaler.transform(data['adj_close'].values.reshape(-1,1))[-look_back:]  
         future_predictions = []
         for _ in range(future_days):
             pred = model.predict(input_data.reshape(1, -1, 1))  
