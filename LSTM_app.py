@@ -17,26 +17,26 @@ from utils import comms  # Make sure you have this utils module with db.py file
 import boto3
 import os
 
-# Initialise session state for authentication
-if 'is_authenticated' not in st.session_state:
-    st.session_state['is_authenticated'] = False
+# # Initialise session state for authentication
+# if 'is_authenticated' not in st.session_state:
+#     st.session_state['is_authenticated'] = False
 
-# Function to authenticate user using AWS Cognito
-def authenticate(email, password):
-    client = boto3.client('cognito-idp', region_name='eu-west-2')
-    try:
-        resp = client.initiate_auth(
-            AuthFlow='USER_PASSWORD_AUTH',
-            AuthParameters={
-                'USERNAME': email,
-                'PASSWORD': password,
-            },
-            ClientId='ncv5lum49vqnk7m505e8pfvce' 
-        )
-        return resp.get("AuthenticationResult").get("IdToken")
-    except Exception as e:
-        st.warning("Failed to authenticate")
-        return None
+# # Function to authenticate user using AWS Cognito
+# def authenticate(email, password):
+#     client = boto3.client('cognito-idp', region_name='eu-west-2')
+#     try:
+#         resp = client.initiate_auth(
+#             AuthFlow='USER_PASSWORD_AUTH',
+#             AuthParameters={
+#                 'USERNAME': email,
+#                 'PASSWORD': password,
+#             },
+#             ClientId='ncv5lum49vqnk7m505e8pfvce' 
+#         )
+#         return resp.get("AuthenticationResult").get("IdToken")
+#     except Exception as e:
+#         st.warning("Failed to authenticate")
+#         return None
 
 
 
@@ -137,20 +137,20 @@ def calculate_metrics(valid, predictions):
 def main():
     st.set_option('deprecation.showPyplotGlobalUse', False)
 
-    # Check if the user is authenticated for access
-    if not st.session_state['is_authenticated']:
-        st.markdown("<h1 style='text-align: center;'>Login</h1>", unsafe_allow_html=True)
-        email = st.text_input("Email Address")
-        password = st.text_input("Password", type="password")
-        if st.button("Login"):
-            token = authenticate(email, password)
-            if token:
-                st.session_state['token'] = token
-                st.session_state['is_authenticated'] = True  # Set the session state
-                st.success("Logged in")
-            else:
-                st.warning("Failed to log in: Please try again or return to https://main.dsxr40yvbyhag.amplifyapp.com to sign up")
-        return 
+    # # Check if the user is authenticated for access
+    # if not st.session_state['is_authenticated']:
+    #     st.markdown("<h1 style='text-align: center;'>Login</h1>", unsafe_allow_html=True)
+    #     email = st.text_input("Email Address")
+    #     password = st.text_input("Password", type="password")
+    #     if st.button("Login"):
+    #         token = authenticate(email, password)
+    #         if token:
+    #             st.session_state['token'] = token
+    #             st.session_state['is_authenticated'] = True  # Set the session state
+    #             st.success("Logged in")
+    #         else:
+    #             st.warning("Failed to log in: Please try again or return to https://main.dsxr40yvbyhag.amplifyapp.com to sign up")
+    #     return 
     
     col1, col2, col3 = st.sidebar.columns([1,2,1])
     with col1:
