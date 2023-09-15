@@ -15,6 +15,7 @@ from math import sqrt
 from datetime import datetime
 from utils import comms  # Make sure you have this utils module with db.py file
 import boto3
+
 import os
 
 # Initialise session state for authentication
